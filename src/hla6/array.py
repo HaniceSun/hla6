@@ -1,4 +1,5 @@
 import os
+import gzip
 import pandas as pd
 import subprocess
 from importlib import resources
@@ -32,10 +33,93 @@ class Array():
         cmd = f'tcsh SNP2HLA.csh {in_file} {ref_file} {out_file} plink {heap_size} {window_size}'
         subprocess.run(cmd, shell=True, check=True)
 
-    def run_deephla(self, in_file='1958BC', ref_file='HM_CEU_REF', out_file='data/1958BC_Euro', deephla_dir=None):
+    def run_deephla(self, mode='preprocess', in_file='1958BC', ref_file='Pan-Asian_REF', out_dir='data', subset=[], model_json=None, model_dir='model', deephla_dir=None):
         if not deephla_dir:
             deephla_dir = f'{resources.files("hla6").parent.parent}/vendor/DEEP-HLA'
         out_file = os.path.abspath(out_file)
+
+        if mode == 'preprocess':
+
+            if not os.path.exists(f'{ref_file}.hla.json'):
+                cmd = f'conda run -n DEEP-HLA python {deephla_dir}/make_hlainfo.py --ref {ref_file} --output {ref_file}.hla.json'
+                print('Generating HLA info JSON from reference panel ...')
+                subprocess.run(cmd, shell=True, check=True)
+
+            if not os.path.exists(f'{ref_file}.bgl.phased'):
+                cmd = f'plink2 --bfile {ref_file} --snps-only just-acgt --max-alleles 2 --export vcf bgz --out {ref_file}_tmp'
+                print('Generating VCF file from reference panel...')
+                subprocess.run(cmd, shell=True, check=True)
+
+                cmd = f'bcftools norm -d all {ref_file}_tmp.vcf.gz -Oz -o {ref_file}.vcf.gz; rm {ref_file}_tmp.vcf.gz; rm {ref_file}_tmp.log'
+                print('Norm VCF to remove duplicated markers...')
+                subprocess.run(cmd, shell=True, check=True)
+
+                cmd = f'beagle gt={ref_file}.vcf.gz out={ref_file}.phased'
+                print('Phasing REF using beagle ...')
+                subprocess.run(cmd, shell=True, check=True)
+
+                print('Converting phased VCF to BGL format ...')
+                self.vcf2bgl(f'{ref_file}.phased.vcf.gz')
+
+            if not os.path.exists(f'{in_file}.bgl.phased'):
+                cmd = f'plink2 --bfile {in_file} --snps-only just-acgt --max-alleles 2 --export vcf bgz --out {in_file}_tmp'
+                print('Generating VCF file from input genotype data...')
+                subprocess.run(cmd, shell=True, check=True)
+
+                cmd = f'bcftools norm -d all {in_file}_tmp.vcf.gz -Oz -o {in_file}.vcf.gz; rm {in_file}_tmp.vcf.gz; rm {in_file}_tmp.log'
+                print('Norm VCF to remove duplicated markers...')
+                subprocess.run(cmd, shell=True, check=True)
+
+                cmd = f'beagle gt={in_file}.vcf.gz ref={ref_file}.phased.vcf.gz out={in_file}.phased'
+                print('Phasing INPUT using beagle with REF data ...')
+                subprocess.run(cmd, shell=True, check=True)
+
+                print('Converting phased VCF to BGL format ...')
+                self.vcf2bgl(f'{in_file}.phased.vcf.gz')
+
+                if subset:
+                    region = subset.replace('-', ':').split(':')
+                    df = pd.read_table(f'{in_file}.bgl.phased', sep=' ', header=None)
+                    wh = []
+                    for n in range(df.shape[0]):
+                        chrom = str(df.iloc[n, 0])
+                        pos = int(df.iloc[n, 1])
+                        if chrom == region[0] and pos >= int(region[1]) and pos <= int(region[2]):
+                            wh.append(True)
+                        else:
+                            wh.append(False)
+                    df = df.loc[wh, ] 
+                    df.to_csv(f'{in_file}.bgl.phased', header=False, index=False, sep=' ')
+
+        elif mode == 'train':
+            hla_json = f'{ref_file}.hla.json'
+            if os.path.exists(hla_json):
+                cmd = f'conda run -n DEEP-HLA python {deephla_dir}/train.py --ref {ref_file} --sample {in_file} --model {model_json.replace(".model.json", "")} --hla {hla_json.replace(".hla.json", "")} --model-dir {model_dir}'
+                print(cmd)
+                pass
+            else:
+                raise FileNotFoundError(f'HLA info JSON file {hla_json} not found. Please run in preprocess mode first.')
+
+        elif mode == 'impute':
+            pass
+
+    def vcf2bgl(self, vcf_file):
+        bgl_file = vcf_file.replace('.phased.vcf.gz', '.bgl.phased')
+        with gzip.open(vcf_file, 'rt') as f, open(bgl_file, 'w') as out:
+            for line in f:
+                if line.startswith("##"): continue
+                if line.startswith("#CHROM"):
+                    samples = line.strip().split("\t")[9:]
+                    continue
+                parts = line.strip().split("\t")
+                chrom, pos = parts[0], parts[1]
+                genotypes = parts[9:]
+                hap1, hap2 = [], []
+                for gt in genotypes:
+                    a, b = gt.split(":")[0].split("|")
+                    hap1.append(a)
+                    hap2.append(b)
+                out.write(f"{chrom} {pos} " + " ".join(hap1 + hap2) + "\n")
 
     def format_output(self, in_file='data/1958BC_Euro.bgl.phased', out_file='data/1958BC_Euro_digit4.txt', digit=4, in_type='snp2hla'):
         if in_type == 'snp2hla':

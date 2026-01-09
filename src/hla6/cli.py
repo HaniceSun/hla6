@@ -19,11 +19,14 @@ def get_parser():
     p2.add_argument('--output', type=str, default='data/1958BC_Euro_digit4.txt', help='output file')
     p2.add_argument('--digit', type=int, default=4, help='digit level for HLA alleles')
 
-    p3 = subparsers.add_parser("run-deep-hla", help="run CNN-based DEEP*HLA, to be implemented")
+    p3 = subparsers.add_parser("run-deephla", help="run CNN-based DEEP*HLA, to be implemented")
+    p3.add_argument('--mode', type=str, default='preprocess', help='mode of DEEP*HLA, preprocess, train, or impute')
     p3.add_argument('--input', type=str, default='1958BC', help='input file prefix')
-    p3.add_argument('--reference', type=str, default='HM_CEU_REF', help='reference panel prefix, can be HM_CEU_REF or Pan-Asian_REF currently')
-    p3.add_argument('--output', type=str, default='data/1958BC_Euro', help='output file prefix')
-
+    p3.add_argument('--reference', type=str, default='Pan-Asian_REF', help='reference panel prefix, can be HM_CEU_REF or Pan-Asian_REF currently')
+    p3.add_argument('--subset', type=str, default=None, help='subset the input to the HLA regions according to the reference genome, e.g., chr6:28510120-33480577 on GRCh37')
+    p3.add_argument('--output', type=str, default='1958BC_Pan-Asian', help='output file prefix')
+    p3.add_argument('--model_json', type=str, default='Pan-Asian_REF.model.json', help='the config file of the model')
+    p3.add_argument('--model_dir', type=str, default='modelx', help='the output directory of the trained model')
  
     p4 = subparsers.add_parser("run-hlarimnt", help="run Transformer-based HLARIMNT, to be implemented")
 
@@ -40,8 +43,8 @@ def main():
     ar = Array()
     if args.command == 'run-snp2hla':
         ar.run_snp2hla(in_file=args.input, ref_file=args.reference, out_file=args.output)
-    if args.command == 'run-deep-hla':
-        ar.run_deephla(in_file=args.input, ref_file=args.reference, out_file=args.output)
+    if args.command == 'run-deephla':
+        ar.run_deephla(mode=args.mode, in_file=args.input, ref_file=args.reference, out_file=args.output, subset=args.subset, model_json=args.model_json, model_dir=args.model_dir)
     elif args.command == 'format-output':
         ar.format_output(in_file=args.input, in_type=args.input_type, out_file=args.output, digit=args.digit)
     elif args.command == 'run-xHLA':
