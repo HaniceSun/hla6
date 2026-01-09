@@ -6,8 +6,10 @@ channels:
 dependencies:
   - python=3.13
   - plink=1.90b7.7
+  - plink2=2.00a5.12
+  - beagle=5.5_27Feb25.75f
+  - bcftools=1.23
   - tcsh=6.24.16
-  - bc=1.07.1
   - setuptools=80.9.0
   - numpy=2.3.5
   - matplotlib=3.10.8

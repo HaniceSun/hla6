@@ -20,6 +20,11 @@ def get_parser():
     p2.add_argument('--digit', type=int, default=4, help='digit level for HLA alleles')
 
     p3 = subparsers.add_parser("run-deep-hla", help="run CNN-based DEEP*HLA, to be implemented")
+    p3.add_argument('--input', type=str, default='1958BC', help='input file prefix')
+    p3.add_argument('--reference', type=str, default='HM_CEU_REF', help='reference panel prefix, can be HM_CEU_REF or Pan-Asian_REF currently')
+    p3.add_argument('--output', type=str, default='data/1958BC_Euro', help='output file prefix')
+
+ 
     p4 = subparsers.add_parser("run-hlarimnt", help="run Transformer-based HLARIMNT, to be implemented")
 
     p5 = subparsers.add_parser("run-xHLA", help="run xHLA on sequencing data")
@@ -35,6 +40,8 @@ def main():
     ar = Array()
     if args.command == 'run-snp2hla':
         ar.run_snp2hla(in_file=args.input, ref_file=args.reference, out_file=args.output)
+    if args.command == 'run-deep-hla':
+        ar.run_deephla(in_file=args.input, ref_file=args.reference, out_file=args.output)
     elif args.command == 'format-output':
         ar.format_output(in_file=args.input, in_type=args.input_type, out_file=args.output, digit=args.digit)
     elif args.command == 'run-xHLA':

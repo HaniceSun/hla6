@@ -1,6 +1,9 @@
 ## SNP2HLA
 
 HOME=SNP2HLA
+
+if [ ! -d $HOME ]; then
+
 mkdir -p $HOME && cd $HOME
 
 snp2hla=https://software.broadinstitute.org/mpg/snp2hla/data/SNP2HLA_package_v1.0.3.tar.gz
@@ -23,9 +26,38 @@ ln -s ../beagle2linkage.jar .
 ln -s ../SNP2HLA_package_v1.0.3/SNP2HLA/* .
 ln -s ../SNP2HLA_package_v1.0.3/Pan-Asian/* .
 
+fi
+
+## DEEP-HLA
+if [ ! -d DEEP-HLA ]; then
+mkdir DEEP-HLA
+git clone https://github.com/tatsuhikonaito/DEEP-HLA.git
+cd DEEP-HLA
+rm -rf .git
+
+cat <<EOF > environment.yml
+name: DEEP-HLA
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.7.4
+  - setuptools=59.8.0
+  - numpy=1.17.2
+  - pandas=0.25.1
+  - scipy=1.3.1
+  - tqdm=4.67.1
+  - pip
+  - pip:
+      - torch==1.4.0
+EOF
+conda env create -f environment.yml
+fi
+
 ## xHLA
-singularity pull xHLA.sif docker://humanlongevity/hla
+#singularity pull xHLA.sif docker://humanlongevity/hla
 
 ## OptiType
-singularity pull OptiType.sif docker://fred2/optitype
+#singularity pull OptiType.sif docker://fred2/optitype
 

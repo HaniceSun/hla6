@@ -32,6 +32,11 @@ class Array():
         cmd = f'tcsh SNP2HLA.csh {in_file} {ref_file} {out_file} plink {heap_size} {window_size}'
         subprocess.run(cmd, shell=True, check=True)
 
+    def run_deephla(self, in_file='1958BC', ref_file='HM_CEU_REF', out_file='data/1958BC_Euro', deephla_dir=None):
+        if not deephla_dir:
+            deephla_dir = f'{resources.files("hla6").parent.parent}/vendor/DEEP-HLA'
+        out_file = os.path.abspath(out_file)
+
     def format_output(self, in_file='data/1958BC_Euro.bgl.phased', out_file='data/1958BC_Euro_digit4.txt', digit=4, in_type='snp2hla'):
         if in_type == 'snp2hla':
             if in_file.endswith('.phased'):

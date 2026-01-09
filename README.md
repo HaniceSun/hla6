@@ -6,7 +6,7 @@
 
 ## Overview
 
-hla6 is designed as an integrated suite of tools for inferring HLA types from either genotyping array data or whole-genome sequencing data. It incorporates the core functionality of SNP2HLA, the CNN-based DEEP*HLA, and the Transformer-based HLARIMNT, providing a unified framework to harmonize their outputs and systematically evaluate their performance, by varying key parameters such as ancestry reference panels and benchmarking against our in-house gold-standard HLA typing results, with the goal of further improving the deep learning models. In addition, hla6 is being applied to the All of Us cohort to investigate type 1 diabetes risk alleles across diverse populations. The "6" in the name reflects the six major HLA loci - HLA-A, HLA-B, and HLA-C from HLA class I, and HLA-DP, HLA-DQ, and HLA-DR from HLA class II - located on human chromosome 6.
+hla6 is designed as an integrated suite of tools for inferring HLA types from either genotyping array data. It incorporates the core functionality of Hidden Markov Model-based SNP2HLA, machine learning-based HIBAG, CNN-based DEEP*HLA, and Transformer-based HLARIMNT, providing a unified framework to harmonize their outputs and systematically evaluate their performance by benchmarking against our in-house gold-standard HLA typing results, with the goal to further improve the deep learning model. In addition, hla6 is being applied to the All of Us cohort to investigate type 1 diabetes risk alleles across diverse populations. The "6" in the name reflects the six major HLA loci - HLA-A, HLA-B, and HLA-C from HLA class I, and HLA-DP, HLA-DQ, and HLA-DR from HLA class II - located on human chromosome 6.
 
 ## Installation
 
@@ -24,6 +24,7 @@ conda activate hla6
 ```
 hla6 -h
 hla6 run-snp2hla
+hla6 run-deephla
 ```
 
 ## Author and License
