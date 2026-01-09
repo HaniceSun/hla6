@@ -33,7 +33,7 @@ class Array():
         cmd = f'tcsh SNP2HLA.csh {in_file} {ref_file} {out_file} plink {heap_size} {window_size}'
         subprocess.run(cmd, shell=True, check=True)
 
-    def run_deephla(self, mode='preprocess', in_file='1958BC', ref_file='Pan-Asian_REF', out_dir='data', subset=[], model_json=None, model_dir='model', deephla_dir=None):
+    def run_deephla(self, mode='preprocess', in_file='1958BC', ref_file='Pan-Asian_REF', out_file='output.txt', subset=[], model_json=None, model_dir='model', deephla_dir=None):
         if not deephla_dir:
             deephla_dir = f'{resources.files("hla6").parent.parent}/vendor/DEEP-HLA'
         out_file = os.path.abspath(out_file)
@@ -70,7 +70,7 @@ class Array():
                 print('Norm VCF to remove duplicated markers...')
                 subprocess.run(cmd, shell=True, check=True)
 
-                cmd = f'beagle gt={in_file}.vcf.gz ref={ref_file}.phased.vcf.gz out={in_file}.phased'
+                cmd = f'beagle gt={in_file}.vcf.gz ref={ref_file}.phased.vcf.gz out={in_file}.phased impute=false'
                 print('Phasing INPUT using beagle with REF data ...')
                 subprocess.run(cmd, shell=True, check=True)
 
