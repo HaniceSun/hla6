@@ -17,24 +17,24 @@ class Array():
         if os.path.exists(f'{in_file}.bed'):
             in_file = os.path.abspath(in_file)
         else:
-            raise FileNotFoundError(f'Input file {in_file}.bed not found in current directory')
+            raise FileNotFoundError(f'Input file {in_file}.bed not found')
 
         if os.path.exists(f'{ref_file}.bed'):
             ref_file = os.path.abspath(ref_file)
         else:
-            raise FileNotFoundError(f'Reference file {ref_file}.bed not found in current directory')
+            raise FileNotFoundError(f'Reference file {ref_file}.bed not found')
 
         os.chdir(snp2hla_dir)
         cmd = f'tcsh SNP2HLA.csh {in_file} {ref_file} {out_file} plink {heap_size} {window_size}'
         subprocess.run(cmd, shell=True, check=True)
 
-    def run_deephla(self, mode='train', in_file='1958BC_Pan-Asian_REF', ref_file='Pan-Asian_REF', subset=[], model_json=None, model_dir='model', deephla_dir=None):
+    def run_deephla(self, mode='train', in_file='1958BC_Pan-Asian_REF', out_file='1958BC_Pan-Asian_REF_DEEPHLA', ref_file='Pan-Asian_REF', subset=[], model_json=None, model_dir='model', deephla_dir=None):
         if not deephla_dir:
             deephla_dir = f'{resources.files("hla6").parent.parent}/vendor/DEEP-HLA'
 
         if mode == 'train':
             if not os.path.exists(f'{in_file}.bgl.phased') or not os.path.exists(f'{ref_file}.bgl.phased'):
-                print('Please use hla6 run-snp2hla first to get the phased bgl files')
+                print('Use hla6 run-snp2hla first to get the phased bgl files')
                 return
 
             if subset:
@@ -60,14 +60,20 @@ class Array():
             if not model_json:
                 model_json = f'{ref_file}.model.json'
             if os.path.exists(model_json):
-                cmd = f'conda run -n DEEP-HLA python {deephla_dir}/train.py --ref {ref_file} --sample {in_file} --model {model_json.replace(".model.json", "")} --hla {hla_json.replace(".hla.json", "")} --model-dir {model_dir}'
+                model_json = model_json.split('.model.json')[0]
+                hla_json = hla_json.split('.hla.json')[0]
+                cmd = f'conda run -n DEEP-HLA python {deephla_dir}/train.py --ref {ref_file} --sample {in_file} --model {model_json} --hla {hla_json} --model-dir {model_dir}'
                 print(cmd)
                 subprocess.run(cmd, shell=True, check=True)
             else:
                 raise FileNotFoundError(f'{model_json} not found')
 
         elif mode == 'impute':
-            pass
+            model_json = model_json.split('.model.json')[0]
+            hla_json = hla_json.split('.hla.json')[0]
+            cmd = f'conda run -n DEEP-HLA python {deephla_dir}/impute.py --sample {in_file} --model {model_json} --hla  {hla_json) --model-dir {model_dir} --out out_file'
+            print(cmd)
+            #subprocess.run(cmd, shell=True, check=True)
 
     def format_output(self, in_file='data/1958BC_Euro.bgl.phased', out_file='data/1958BC_Euro_digit4.txt', digit=4, in_type='snp2hla'):
         if in_type == 'snp2hla':
@@ -75,10 +81,10 @@ class Array():
                 header = ['SampleID', 'HLA', 'Allele1', 'Allele2']
                 df = pd.read_table(in_file, sep=' ', skiprows=1)
                 df = df.loc[df.iloc[:, 1].str.startswith('HLA'), ]
-    
+
                 wh = [len(x.split('_')[2]) == digit for x in df.iloc[:, 1]]
                 df = df.loc[wh, ]
-    
+
                 L = []
                 for n in range(2, df.shape[1], 2):
                     sample_id = df.columns[n]
@@ -96,10 +102,10 @@ class Array():
                         if df.iloc[m, n + 1] == 'P':
                             allele2.setdefault(k, [])
                             allele2[k].append(':'.join([k] + fields[2:]))
-    
+
                     for hla in self.HLA:
                         L.append([sample_id, hla, ','.join(allele1.get(hla, 'X')), ','.join(allele2.get(hla, 'X'))])
-    
+
                 df = pd.DataFrame(L)
                 df.columns = header
                 df.to_csv(out_file, header=True, index=False, sep='\t')
@@ -111,10 +117,10 @@ class Array():
                 header = ['SampleID', 'HLA', 'Allele1', 'Allele2', 'Dosage1', 'Dosage2']
                 df = pd.read_table(in_file, sep='\t', header=None)
                 df = df.loc[df.iloc[:, 0].str.startswith('HLA'), ]
-        
+
                 wh = [len(x.split('_')[2]) == digit for x in df.iloc[:, 0]]
                 df = df.loc[wh, ]
-        
+
                 L = []
                 S = []
                 for n in range(3, df.shape[1]):
@@ -130,7 +136,7 @@ class Array():
                         k = '-'.join(fields[0:2])
                         D.setdefault(k, [])
                         D[k].append([':'.join([k] + fields[2:]), df.iloc[m, n]])
-        
+
                     for hla in self.HLA:
                         allele1 = 'X'
                         allele2 = 'X'
