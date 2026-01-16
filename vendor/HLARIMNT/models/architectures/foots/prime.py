@@ -42,8 +42,6 @@ class PrimeEmbed(nn.Module):
             print(input_len-(chunk_spilt_num-1)*stride)
             self.embedding = nn.Conv1d(2, params['emb_dim'], kernel_size=input_len-(chunk_spilt_num-1)*stride, stride=stride)
         elif encode_type == 'chunk':
-            config_file = '../config.yaml'
-
             self.embedding_conv =nn.Conv1d(2, params['embed_conv_dim'], kernel_size=chunk_len)
             self.bn1 = nn.BatchNorm1d(params['embed_conv_dim'])
             self.relu = nn.ReLU()
