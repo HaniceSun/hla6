@@ -2,7 +2,7 @@
 import numpy as np
 from sklearn.metrics import accuracy_score
 from typing import Tuple, List, Dict
-from codes.supports.storer import AllResultStorer
+from models.supports.storer import AllResultStorer
 import pandas as pd
 
 class Monitor:

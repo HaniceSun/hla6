@@ -52,16 +52,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     params = path_to_dict(args.config)
-    log_file = f'{args.data_dir}/training.log'
+    os.makedirs(f'{args.data_dir}/{params["exp_name"]}')
+    log_file = f'{args.data_dir}/{params["exp_name"]}/training.log'
     logger = Logger(log_file)
 
     if params['fold_num'] == -1:
         start_time = time.time()
         logger.log(f'process starts at {start_time}')
-        _ = run_train(args, params, 0, logger, 'exp', args.data_dir, ref)
+        _ = run_train(args, params, 0, logger, 'exp', args.data_dir, args.ref)
         end_time = time.time()
         logger.log(f'process ends at {end_time}')
         logger.log(f'all processing time is {end_time - start_time} seconds.')
     else:
         for seed in range(params['fold_num']):
-            _ = run_train(args, params, seed, logger, 'exp', args.data_dir, ref)
+            _ = run_train(args, params, seed, logger, 'exp', args.data_dir, args.ref)

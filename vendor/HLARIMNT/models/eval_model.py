@@ -2,19 +2,16 @@
 import json
 from typing import Tuple, List
 from argparse import Namespace
-from codes.supports.utils import *
-from codes.architectures.model import implement_model
-from codes.supports.storer import AllResultStorer
+from models.supports.utils import *
+from models.architectures.model import implement_model
+from models.supports.storer import AllResultStorer
 import pickle
-from codes.supports.monitor import Monitor
+from models.supports.monitor import Monitor
 
 import torch
 import matplotlib.pyplot as plt
 
-from codes.train_model import ModelTrainer
-
-cfg_file = '../config.yaml'
-config = path_to_dict(cfg_file)
+from models.train_model import ModelTrainer
 
 class ModelEvaluator:
     def __init__(self, args) -> None:
@@ -24,15 +21,22 @@ class ModelEvaluator:
             seed (int) : Express the part of test data.
         """
         self.args = args
-        self.settings = path_to_dict(args.settings)['base']
-        self.dataset_name = self.settings['data']['dataset']
-        grouping = self.settings['model']['grouping']
+        self.data_dir = args.data_dir
+        self.ref = args.ref
+        self.seed = args.seed
+
+        with open(args.config) as f:
+            self.params = yaml.safe_load(f)
+
+        self.dataset_name = self.params['dataset']
+        grouping = self.params['model']['grouping']
         self.genes = []
         for key in grouping.keys():
             self.genes += grouping[key]
         self.sample_result = ['R2', 'accuracy']
 
-        self.exp_dir = f'/{self.settings["exp_name"]}'+ f'/{self.settings["task"]}-{self.settings["data"]["dataset"]}'
+        self.exp_name = self.params['exp_name']
+        self.exp_dir = f'{self.data_dir}/{self.exp_name}'
 
     def _prepare_dataloader(self, seed, idx, digit):
         """
@@ -41,8 +45,9 @@ class ModelEvaluator:
         Returns:
             test_loader (Iterable)
         """
-        loader_root = config['exp']['pc_data_root'] + self.exp_dir
-        loader_file = loader_root + f'/seed{seed}/id{idx}-digit{digit}/test_loader.pkl'
+        loader_root = f'{self.data_dir}/{self.exp_name}'
+        #loader_file = loader_root + f'/seed{seed}/id{idx}-digit{digit}/test_loader.pkl'
+        loader_file = loader_root + f'/seed{seed}/id{idx}-digit{digit}/val_loader.pkl'
         test_loader = pickle.load(open(loader_file, 'rb'))
 
         return test_loader
@@ -54,7 +59,7 @@ class ModelEvaluator:
         Returns:
             None
         """
-        model_dir = config['exp']['save_root'] + self.exp_dir + f'/seed{seed}' + config['exp']['model_save_loc']
+        model_dir = f'{self.data_dir}/{self.exp_name}/model'
 
         model_info_file = model_dir + '/model_info.json'
         with open(model_info_file) as f:
@@ -62,14 +67,14 @@ class ModelEvaluator:
 
         self.hla_list =  model_info[str(idx)]['hla_list'][digit]
         input_len = model_info[str(idx)]['input_len'] ###(trainで保存) {1(idx):{input_len:25, hla_list:{2-digit:[], 4-digit:[]}} }
-        if self.settings['encode'] == 'chunk':
+        if self.params['encode'] == 'chunk':
             chunk_len = model_info[str(idx)]['chunk_len']
         else:
             chunk_len = None
-        models = implement_model(self.dataset_name, self.hla_list, digit, input_len, chunk_len, self.settings)
+        models = implement_model(self.dataset_name, self.hla_list, digit, input_len, chunk_len, self.params, self.data_dir)
 
         for key in models.keys():
-            models[key].load_state_dict(torch.load(model_dir + f'/{idx}-{digit}' + f'/{key}.pth'))
+            models[key].load_state_dict(torch.load(model_dir + f'/{idx}-{digit}' + f'/{key}.pth', weights_only=False))
 
         return models
 
@@ -117,20 +122,19 @@ class ModelEvaluator:
         return acc_dict_v, monitor_dict_v
     
     def _make_evals(self):
-        model_cfg = self.settings['model']['grouping']
-        digit_list = self.settings['digits']
-        self.fold_num = self.settings['fold_num']
-        data_loc = config['dataset']
-        dataset_name = self.settings['data']['dataset']
-        hla_info = data_loc['save_root'] + data_loc[dataset_name]['dirname'] + data_loc[dataset_name]['hla_info']
+        model_cfg = self.params['model']['grouping']
+        digit_list = self.params['digits']
+        self.fold_num = self.params['fold_num']
+        data_loc = self.params['dataset']
+        dataset_name = self.params['dataset']
+        hla_info = f'{self.data_dir}/hla_info.json'
         hla_info = path_to_dict(hla_info)
-        freq_info_loc = data_loc[dataset_name]['allele_freq_info']
-        #freq_info = pd.read_table(data_loc['save_root'] + data_loc[dataset_name]['dirname'] + freq_info_loc, sep='\t|\s+',engine='python', index_col=1)
+        freq_info_loc = f'{self.data_dir}/{self.ref}.FRQ.frq'
 
         if dataset_name == 'Mixed' or dataset_name == 'Equal' or dataset_name == 'Ind_Pan-Asian' or dataset_name == 'Ind_T1DGC'or dataset_name == 'T1DGC_530' or dataset_name == 'T1DGC_1300' or dataset_name == 'T1DGC_2600':
-            freq_info = pd.read_csv(data_loc['save_root'] + data_loc[dataset_name]['dirname'] + freq_info_loc ,index_col=1)
+            freq_info = pd.read_csv(freq_info_loc ,index_col=1)
         else:
-            freq_info = pd.read_table(data_loc['save_root'] + data_loc[dataset_name]['dirname'] + freq_info_loc, sep='\t|\s+',engine='python', index_col=1)
+            freq_info = pd.read_table(freq_info_loc, sep='\t|\s+',engine='python', index_col=1)
         
         acc_dict_all = {}
         for digit in digit_list:
@@ -144,7 +148,7 @@ class ModelEvaluator:
         else:
             seed_num = self.fold_num
         for seed in range(seed_num):
-            self.all_result_storer = AllResultStorer(config['exp']['save_root'] + self.exp_dir + f'/seed{seed}', is_test=True)
+            self.all_result_storer = AllResultStorer(f'{self.data_dir}/{self.exp_name}/seed{seed}', is_test=True)
 
             for idx in model_cfg:
                 for digit in digit_list:
@@ -186,8 +190,8 @@ class ModelEvaluator:
                         freq_gene_info[criteria][hla][digit][phase]['value'] = []
                         freq_gene_info[criteria][hla][digit][phase]['count'] = []
                         for seed in range(seed_num):
-                            result_csv = config['exp']['save_root'] + self.exp_dir + f'/seed{seed}' + config['exp']['csv_save_loc'] + '/evals_by_freq_test.csv'
-                            sample_csv = config['exp']['save_root'] + self.exp_dir + f'/seed{seed}' + config['exp']['csv_save_loc'] + '/evals_by_freq_sample_test.csv'
+                            result_csv = f'{self.data_dir}/{self.exp_name}/seed{seed}/csv/evals_by_freq_test.csv'
+                            sample_csv = f'{self.data_dir}/{self.exp_name}/seed{seed}/csv/evals_by_freq_sample_test.csv'
                             if criteria in self.sample_result:
                                 result_df = pd.read_csv(sample_csv)
                             else:
@@ -221,8 +225,8 @@ class ModelEvaluator:
                 phased_result_tmp['2-digit'][phase] = []
                 phased_result_tmp['4-digit'][phase] = []
                 for seed in range(seed_num):
-                    result_csv = config['exp']['save_root'] + self.exp_dir + f'/seed{seed}' + config['exp']['csv_save_loc'] + '/evals_by_freq_test.csv'
-                    sample_csv = config['exp']['save_root'] + self.exp_dir + f'/seed{seed}' + config['exp']['csv_save_loc'] + '/evals_by_freq_sample_test.csv'
+                    result_csv = f'{self.data_dir}/{self.exp_name}/seed{seed}/csv/evals_by_freq_test.csv'
+                    sample_csv = f'{self.data_dir}/{self.exp_name}/seed{seed}/csv/evals_by_freq_sample_test.csv'
                     if criteria in self.sample_result:
                         result_df = pd.read_csv(sample_csv)
                     else:
@@ -259,8 +263,8 @@ class ModelEvaluator:
                 phased_result_tmp['2-digit'][hla] = []
                 phased_result_tmp['4-digit'][hla] = []
                 for seed in range(seed_num):
-                    result_csv = config['exp']['save_root'] + self.exp_dir + f'/seed{seed}' + config['exp']['csv_save_loc'] + '/evals_by_freq_test.csv'
-                    sample_csv = config['exp']['save_root'] + self.exp_dir + f'/seed{seed}' + config['exp']['csv_save_loc'] + '/evals_by_freq_sample_test.csv'
+                    result_csv = f'{self.data_dir}/{self.exp_name}/seed{seed}/csv/evals_by_freq_test.csv'
+                    sample_csv = f'{self.data_dir}/{self.exp_name}/seed{seed}/csv/evals_by_freq_sample_test.csv'
                     if criteria in self.sample_result:
                         result_df = pd.read_csv(sample_csv)
                     else:
@@ -286,15 +290,15 @@ class ModelEvaluator:
 
     def _make_evals_for_scatter(self):
         data_loc = config['dataset']
-        dataset_name = self.settings['data']['dataset']
+        dataset_name = self.params['dataset']
         hla_info = data_loc['save_root'] + data_loc[dataset_name]['dirname'] + data_loc[dataset_name]['hla_info']
         hla_info = path_to_dict(hla_info)
         freq_info_loc = data_loc[dataset_name]['allele_freq_info']
-        freq_info = pd.read_table(data_loc['save_root'] + data_loc[dataset_name]['dirname'] + freq_info_loc, sep='\t|\s+',engine='python', index_col=1)
+        freq_info = pd.read_table(freq_info_loc, sep='\t|\s+',engine='python', index_col=1)
 
         results = {'hla':[], 'digit':[],'r2':[], 'r2_01':[],'ppv':[], 'sens':[], 'fscore':[], 'freq':[], 'id':[]}
         for id in range(id_num):
-            for digit in self.settings['digits']:
+            for digit in self.params['digits']:
                 for hla in self.genes:
                     id_num = len(hla_info[hla][digit])
                     cri_result = {}
@@ -303,7 +307,7 @@ class ModelEvaluator:
                     for criteria in ['ppv', 'sens', 'fscore', 'r2', 'r2_01','concordance']:
                         value_by_seed = []
                         for seed in range(self.fold_num):
-                            result_csv = config['exp']['save_root'] + self.exp_dir + f'/seed{seed}' + config['exp']['csv_save_loc'] + '/evals_by_freq_test.csv'
+                            result_csv = f'{self.data_dir}/{self.exp_name}/seed{seed}/csv/evals_by_freq_test.csv'
                             result_df = pd.read_csv(result_csv)
                             tmp_df = result_df[result_df['digit']==digit]
                             tmp_df = tmp_df[tmp_df['id']==id]
@@ -329,7 +333,8 @@ class ModelEvaluator:
             gene_result = self._make_gene_evals()
             #scatter_results = self._make_evals_for_scatter()
             #details = self._make_freq_gene_evals()
-            eval_result_dir = config['exp']['save_root'] + self.exp_dir
+            eval_result_dir = self.data_dir + f'/{self.params["exp_name"]}/eval'
+            os.makedirs(eval_result_dir, exist_ok=True)
 
             with open(eval_result_dir +  '/test_phased_evals.json', 'w') as f:
                 json.dump(phased_result, f, indent=4)

@@ -75,24 +75,28 @@ class Array():
             print(cmd)
             subprocess.run(cmd, shell=True, check=True)
 
-    def run_hlarimnt(self, mode='train', ref_file='Pan-Asian_REF', data_dir='Pan-Asian', model_yaml='config.yaml', hlarimnt_dir=None):
+    def run_hlarimnt(self, mode='train', ref='Pan-Asian_REF', data_dir='Pan-Asian', model_yaml='config.yaml', hlarimnt_dir=None):
         data_dir = os.path.abspath(data_dir)
         model_yaml = f'{data_dir}/{model_yaml}'
 
         if not hlarimnt_dir:
-            hlarimnt_dir = f'{resources.files("hla6").parent.parent}/vendor/HLARIMNT/src/exp'
+            hlarimnt_dir = f'{resources.files("hla6").parent.parent}/vendor/HLARIMNT'
         os.chdir(hlarimnt_dir)
 
         if mode == 'prepare':
-            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/make_hlainfo.py --ref {ref_file} --data_dir {data_dir}'
+            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/make_hlainfo.py --ref {ref} --data_dir {data_dir}'
             print(f'making HLA info to {data_dir}/hla_info.json')
             subprocess.run(cmd, shell=True, check=True)
-            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/make_samplebim.py --ref {ref_file} --data_dir {data_dir}'
-            print(f'making sample bim to {data_dir}/{ref_file}_sample.bim')
+            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/make_samplebim.py --ref {ref} --data_dir {data_dir}'
+            print(f'making sample bim to {data_dir}/{ref}_sample.bim')
             subprocess.run(cmd, shell=True, check=True)
-        if mode == 'train':
+        elif mode == 'train':
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/run_train.py --config {model_yaml} --device {device} --data_dir {data_dir}'
+            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/run_train.py --config {model_yaml} --data_dir {data_dir} --ref {ref} --device {device}'
+            print(cmd)
+            subprocess.run(cmd, shell=True, check=True)
+        elif mode == 'eval':
+            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/run_eval.py --config {model_yaml} --data_dir {data_dir} --ref {ref}'
             print(cmd)
             subprocess.run(cmd, shell=True, check=True)
 

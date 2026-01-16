@@ -49,7 +49,7 @@ def main():
         ar.run_deephla(mode=args.mode, in_file=args.input, ref_file=args.ref, subset=args.subset,
                        model_json=args.model_json, model_dir=args.model_dir)
     elif args.command == 'run-hlarimnt':
-        ar.run_hlarimnt(mode=args.mode, ref_file=args.ref, data_dir=args.data_dir, model_yaml=args.model_yaml)
+        ar.run_hlarimnt(mode=args.mode, ref=args.ref, data_dir=args.data_dir, model_yaml=args.model_yaml)
     elif args.command == 'format-output':
         ar.format_output(in_file=args.input, out_file=args.output, digit=args.digit, from_tool=args.from_tool)
 

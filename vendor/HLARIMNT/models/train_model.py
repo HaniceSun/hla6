@@ -4,12 +4,12 @@ import numpy as np
 import tqdm
 from typing import Tuple, Dict
 
-from codes.data.dataset import *
-from codes.supports.utils import *
-from codes.supports.monitor import *
-from codes.supports.storer import *
-from codes.supports.min_norm_solvers import *
-from codes.architectures.model import *
+from models.data.dataset import *
+from models.supports.utils import *
+from models.supports.monitor import *
+from models.supports.storer import *
+from models.supports.min_norm_solvers import *
+from models.architectures.model import *
 
 import sys
 import yaml
@@ -50,8 +50,9 @@ class ModelTrainer:
             None
         """
         
-        hla_info_loc = '{self.data_dir}/hla_info.json'
-        freq_info_loc = '{self.data_dir}/{self.ref}.FRQ.frq'
+        hla_info_loc = f'{self.data_dir}/hla_info.json'
+        freq_info_loc = f'{self.data_dir}/{self.ref}.FRQ.frq'
+        print(freq_info_loc)
         digit_list = self.params['digits']
         model_cfg = self.params['model']['grouping']
         dataset = self.params['dataset']
@@ -79,7 +80,7 @@ class ModelTrainer:
                 self.logger.log(f'Training of model {idx}-{digit} starts.')
 
                 #Choose genes that have more than one allele.
-                data_processor = DataProcessor(self.params, self.logger)
+                data_processor = DataProcessor(self.params, self.logger, self.data_dir, self.ref)
                 skip_hlas, self.allele_cnts = data_processor.calc_skip_hlas(digit, hla_list_tmp)
                 self.hla_list = hla_list_tmp.copy()#list(set(hla_list_tmp) - set(skip_hlas))
                 self.all_result_storer.store_hla_list(idx, digit, self.hla_list)
@@ -96,7 +97,7 @@ class ModelTrainer:
                 train_data = data_processor.make_train_data(digit, self.hla_list) 
                 #print('train_data:', train_data[0][0].shape)
                 
-                train_loader, val_loader, test_loader = make_loaders(self.params, train_data, idx, digit, self.seed)
+                train_loader, val_loader, test_loader = make_loaders(self.params, train_data, idx, digit, self.seed, self.data_dir)
 
                 #Setup model.
                 input_len = train_data[0][0].shape[0]
@@ -106,7 +107,7 @@ class ModelTrainer:
                 else:
                     chunk_len = None
                 
-                self.models = implement_model(dataset, self.hla_list, digit, input_len, chunk_len, self.params)
+                self.models = implement_model(dataset, self.hla_list, digit, input_len, chunk_len, self.params, self.data_dir)
                 self.all_result_storer.store_input_len(idx, input_len, chunk_len)
 
                 #Transfer model of lower phase.load_

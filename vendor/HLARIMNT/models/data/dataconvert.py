@@ -2,18 +2,15 @@
 import yaml
 import torch
 from torch.utils.data import DataLoader, Dataset
-from codes.supports.utils import *
+from models.supports.utils import *
 import pickle
 import numpy as np
 from typing import Dict, List, Tuple
 from torch.utils.data.dataset import Subset
 
-config_file = '../config.yaml'
-config = path_to_dict(config_file)
-
 class DataAugumentor:
 
-    def __init__(self, params, model_id, digit):
+    def __init__(self, params, model_id, digit, data_dir):
         """
         Args:
             data (np.ndarray): 1(cls token)をつけた後のid変換済みデータ
@@ -21,13 +18,14 @@ class DataAugumentor:
         self.params = params
         self.model_id = model_id
         self.digit = digit
+        self.data_dir = data_dir
 
     def _calc_label_num(self, not_test_data):
         """
         """
-        dataset_name = self.params['data']['dataset']
-        data_loc = config['dataset']
-        hla_info = data_loc['save_root'] + data_loc[dataset_name]['dirname'] + data_loc[dataset_name]['hla_info']
+        dataset_name = self.params['dataset']
+        data_loc = self.data_dir
+        hla_info = f'{self.data_dir}/hla_info.json'
         hla_info = path_to_dict(hla_info)
 
         label_num = len(hla_info[self.params['model']['grouping'][self.model_id][0]][self.digit])

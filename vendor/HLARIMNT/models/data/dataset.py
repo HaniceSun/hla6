@@ -6,24 +6,19 @@ import torch.nn as nn
 from calendar import c
 import yaml
 from torch.utils.data import DataLoader, Dataset
-from codes.supports.utils import *
+from models.supports.utils import *
 import pickle
 import numpy as np
 from typing import Dict, List, Tuple
 from torch.utils.data.dataset import Subset
 import random
-from codes.data.dataconvert import DataAugumentor
+from models.data.dataconvert import DataAugumentor
 from sklearn.cluster import KMeans
 import math
 
-config_file = '../config.yaml'
-
-with open(config_file) as f:
-    config = yaml.safe_load(f)
-
 class DataProcessor:
 
-    def __init__(self, params: Dict, logger) -> None:
+    def __init__(self, params: Dict, logger, data_dir, ref) -> None:
         """
         Args:
             args (Namespace) : Dict of the setting of the experiment.
@@ -32,19 +27,18 @@ class DataProcessor:
         """
         self.params = params
         self.logger = logger
-        data_root = config['dataset']['save_root']
-        dataset_name = params['data']['dataset']
-        data_root = data_root + config['dataset'][dataset_name]['dirname']
+        self.data_dir = data_dir
+        self.ref = ref
+        data_root = self.data_dir
         
-        hla_info = data_root + config['dataset'][dataset_name]['hla_info']
+        hla_info = f'{self.data_dir}/hla_info.json'
         self.hla_info = path_to_dict(hla_info)
-        pc_data_root = config['exp']['pc_data_root']
-        self.pc_data_loc = pc_data_root + f'/{params["exp_name"]}'+ f'/{params["task"]}-{params["data"]["dataset"]}'
+        self.pc_data_loc = f'{self.data_dir}/{params["exp_name"]}/processed'
         makedirs(self.pc_data_loc)
         self.digit_list = params['digits']
         self.kmeans = params['kmeans']
 
-        if self.params['data']['dataset'] == 'Mixed' or self.params['data']['dataset'] == 'Equal' or self.params['data']['dataset'] == 'Ind_Pan-Asian' or self.params['data']['dataset'] == 'Ind_T1DGC':
+        if self.params['dataset'] == 'Mixed' or self.params['dataset'] == 'Equal' or self.params['dataset'] == 'Ind_Pan-Asian' or self.params['dataset'] == 'Ind_T1DGC':
             pan_asian_ref = data_root + '/Mixed_Pan-Asian.bim'
             t1dgc_ref = data_root + '/Mixed_T1DGC.bim'
             pa_bim_for_bgl = data_root + '/Pan-Asian_REF_proc.bim'
@@ -57,7 +51,7 @@ class DataProcessor:
             pan_asian_phased = data_root + '/Pan-Asian_REF.bgl.phased'
             t1dgc_phased = data_root + '/T1DGC_REF_proc2.bgl.phased'
             pan_asian_ref_phased = pd.read_table(pan_asian_phased, sep='\t|\s+', header=None, engine='python', skiprows=5).iloc[:, 1:]
-            if self.params['data']['dataset'] == 'Equal':
+            if self.params['dataset'] == 'Equal':
                 t1dgc_ref_phased = pd.read_table(t1dgc_phased, sep='\t|\s+', header=None, engine='python', skiprows=5).iloc[:, 1:1062]
             else:
                 t1dgc_ref_phased = pd.read_table(t1dgc_phased, sep='\t|\s+', header=None, engine='python', skiprows=5).iloc[:, 1:]
@@ -65,16 +59,16 @@ class DataProcessor:
             self.t1dgc_phased = t1dgc_ref_phased.set_index(1)
 
         else:
-            ref = data_root + params['data']['ref']
-            #sample = data_root + params['data']['sample']
-            self.ref_bim = pd.read_table(ref, sep='\t|\s+', names=['chr', 'id', 'dist', 'pos', 'a1', 'a2'], header=None, engine='python')
-            phased = data_root + params['data']['phased']
+            #sample = data_root + params['sample']
+            ref_bim = f'{data_dir}/{ref}.bim'
+            phased = f'{data_dir}/{ref}.bgl.phased'
+            self.ref_bim = pd.read_table(ref_bim, sep='\t|\s+', names=['chr', 'id', 'dist', 'pos', 'a1', 'a2'], header=None, engine='python')
             
-            if self.params['data']['dataset'] == 'T1DGC_530':
+            if self.params['dataset'] == 'T1DGC_530':
                 ref_phased = pd.read_table(phased, sep='\t|\s+', header=None, engine='python', skiprows=5).iloc[:, 1:1062]
-            if self.params['data']['dataset'] == 'T1DGC_1300':
+            if self.params['dataset'] == 'T1DGC_1300':
                 ref_phased = pd.read_table(phased, sep='\t|\s+', header=None, engine='python', skiprows=5).iloc[:, 1:2602]
-            if self.params['data']['dataset'] == 'T1DGC_2600':
+            if self.params['dataset'] == 'T1DGC_2600':
                 ref_phased = pd.read_table(phased, sep='\t|\s+', header=None, engine='python', skiprows=5).iloc[:, 1:5202]
             else:
                 ref_phased = pd.read_table(phased, sep='\t|\s+', header=None, engine='python', skiprows=5).iloc[:, 1:]
@@ -84,7 +78,7 @@ class DataProcessor:
             #assert self.kmeans == False
 
     def _make_sample_bim(self, collapse_rate):
-        if self.params['data']['dataset'] == 'Mixed' or self.params['data']['dataset'] == 'Equal' or self.params['data']['dataset'] == 'Ind_Pan-Asian' or self.params['data']['dataset'] == 'Ind_T1DGC':
+        if self.params['dataset'] == 'Mixed' or self.params['dataset'] == 'Equal' or self.params['dataset'] == 'Ind_Pan-Asian' or self.params['dataset'] == 'Ind_T1DGC':
             sample_bim_tmp_pa = self.pan_asian_ref_bim[~(self.pan_asian_ref_bim['id'].str.startswith('SNP')) & ~(self.pan_asian_ref_bim['id'].str.startswith('AA')) & ~(self.pan_asian_ref_bim['id'].str.startswith('HLA')) & ~(self.pan_asian_ref_bim['id'].str.startswith('INS'))]
             sample_bim_tmp_t1 = self.t1dgc_ref_bim[~(self.t1dgc_ref_bim['id'].str.startswith('SNP')) & ~(self.t1dgc_ref_bim['id'].str.startswith('AA')) & ~(self.t1dgc_ref_bim['id'].str.startswith('HLA')) & ~(self.t1dgc_ref_bim['id'].str.startswith('INS'))]
         #collapsed = [(collapse_rate <= random.random()) for _ in range(len(sample_bim_tmp))]
@@ -105,7 +99,7 @@ class DataProcessor:
             None
         """
         collapse_rate = self.params['collapse'][0]
-        if self.params['data']['dataset'] == 'Mixed' or self.params['data']['dataset'] == 'Equal' or self.params['data']['dataset'] == 'Ind_Pan-Asian' or self.params['data']['dataset'] == 'Ind_T1DGC':
+        if self.params['dataset'] == 'Mixed' or self.params['dataset'] == 'Equal' or self.params['dataset'] == 'Ind_Pan-Asian' or self.params['dataset'] == 'Ind_T1DGC':
             self.sample_bim, self.t1_sample_bim = self._make_sample_bim(collapse_rate)
 
             concord_snp_pa = self.pan_asian_ref_bim.pos.isin(self.sample_bim.pos)
@@ -131,7 +125,7 @@ class DataProcessor:
                             set((self.sample_bim.iloc[tmp].a1, self.sample_bim.iloc[tmp].a2)):
                         concord_snp.iloc[i] = False
 
-        if not (self.params['data']['dataset'] == 'Mixed' or self.params['data']['dataset'] == 'Equal' or self.params['data']['dataset'] == 'Ind_Pan-Asian' or self.params['data']['dataset'] == 'Ind_T1DGC'):
+        if not (self.params['dataset'] == 'Mixed' or self.params['dataset'] == 'Equal' or self.params['dataset'] == 'Ind_Pan-Asian' or self.params['dataset'] == 'Ind_T1DGC'):
             self.num_ref = self.ref_phased.shape[1] // 2
             self.ref_concord_phased = self.ref_phased.iloc[np.where(concord_snp)[0]]
         else:
@@ -144,12 +138,12 @@ class DataProcessor:
             pd.DataFrame(self.ref_concord_phased_pan_asian).to_csv('pa_phased.csv')
 
         self.logger.log(f'{self.num_ref} people loaded from reference.')
-        if not (self.params['data']['dataset'] == 'Mixed' or self.params['data']['dataset'] == 'Equal' or self.params['data']['dataset'] == 'Ind_Pan-Asian' or self.params['data']['dataset'] == 'Ind_T1DGC'):
+        if not (self.params['dataset'] == 'Mixed' or self.params['dataset'] == 'Equal' or self.params['dataset'] == 'Ind_Pan-Asian' or self.params['dataset'] == 'Ind_T1DGC'):
             self.logger.log(f'{len(self.ref_bim)} SNPs loaded from reference.')
         self.logger.log(f'{len(self.sample_bim)} SNPs loaded from sample.')
         self.logger.log(f'{self.num_concord} SNPs matched in position and used for training.')
 
-        if not (self.params['data']['dataset'] == 'Mixed' or self.params['data']['dataset'] == 'Equal' or self.params['data']['dataset'] == 'Ind_Pan-Asian' or self.params['data']['dataset'] == 'Ind_T1DGC'):
+        if not (self.params['dataset'] == 'Mixed' or self.params['dataset'] == 'Equal' or self.params['dataset'] == 'Ind_Pan-Asian' or self.params['dataset'] == 'Ind_T1DGC'):
             if self.params['encode'] == 'chunk' and self.params['chunk_all']:
                 model_bim = self.ref_bim.iloc[np.where(concord_snp)[0]]
                 pos_ids = self._add_cls_info(model_bim)
@@ -375,7 +369,7 @@ class DataProcessor:
             for i in range(2*num_ref):
                 hla_encoded[hla] = {}
             for digit in self.digit_list:
-                if self.params['data']['dataset'] == 'Ind_Pan-Asian' or self.params['data']['dataset'] == 'Ind_T1DGC':
+                if self.params['dataset'] == 'Ind_Pan-Asian' or self.params['dataset'] == 'Ind_T1DGC':
                     hla_encoded[hla][digit] = np.ones(2 * num_ref)*(-1)
                 else:
                     hla_encoded[hla][digit] = np.zeros(2 * num_ref)
@@ -395,7 +389,7 @@ class DataProcessor:
         """
         self._extract_concord()
         snp_encode_type = self.params["encode"]
-        if self.params['data']['dataset'] == 'Mixed' or self.params['data']['dataset'] == 'Equal' or self.params['data']['dataset'] == 'Ind_Pan-Asian' or self.params['data']['dataset'] == 'Ind_T1DGC':
+        if self.params['dataset'] == 'Mixed' or self.params['dataset'] == 'Equal' or self.params['dataset'] == 'Ind_Pan-Asian' or self.params['dataset'] == 'Ind_T1DGC':
             self.pan_asian_snp_encoded = self._encode_snp_mixed('Pan-Asian')
             self.t1dgc_snp_encoded = self._encode_snp_mixed('T1DGC')
             self.pan_asian_hla_encoded = self._encode_hla_mixed('Pan-Asian')
@@ -472,7 +466,7 @@ class DataProcessor:
         """
         snp_encode_type = self.params["encode"]
 
-        if self.params['data']['dataset'] == 'Mixed' or self.params['data']['dataset'] == 'Equal' or self.params['data']['dataset'] == 'Ind_Pan-Asian' or self.params['data']['dataset'] == 'Ind_T1DGC':
+        if self.params['dataset'] == 'Mixed' or self.params['dataset'] == 'Equal' or self.params['dataset'] == 'Ind_Pan-Asian' or self.params['dataset'] == 'Ind_T1DGC':
             if os.path.exists(self.pc_data_loc + f'/encoded_snp_pan_asian.pkl'):
                 with open(self.pc_data_loc + f'/encoded_snp_pan_asian.pkl', 'rb') as f:
                     self.pan_asian_snp_encoded = pickle.load(f)
@@ -518,21 +512,21 @@ class DataProcessor:
             chunk_spilt_num = self.params['chunk_split_num']
             chunk_len = math.ceil((ed_index - st_index)/chunk_spilt_num)
             """
-        if self.params['data']['dataset'] == 'Mixed' or self.params['data']['dataset'] == 'Equal':
+        if self.params['dataset'] == 'Mixed' or self.params['dataset'] == 'Equal':
             self.snp_encoded = np.concatenate([self.pan_asian_snp_encoded, self.t1dgc_snp_encoded],0)
             self.hla_encoded = {}
             for hla in hla_list:
                 self.hla_encoded[hla] = {}
                 self.hla_encoded[hla][digit] = np.array(list(self.pan_asian_hla_encoded[hla][digit]) + list(self.t1dgc_hla_encoded[hla][digit]))
 
-        elif self.params['data']['dataset'] == 'Ind_Pan-Asian':
+        elif self.params['dataset'] == 'Ind_Pan-Asian':
             self.snp_encoded = self.pan_asian_snp_encoded
             self.hla_encoded = {}
             for hla in hla_list:
                 self.hla_encoded[hla] = {}
                 self.hla_encoded[hla][digit] = self.pan_asian_hla_encoded[hla][digit]
 
-        elif self.params['data']['dataset'] == 'Ind_T1DGC':
+        elif self.params['dataset'] == 'Ind_T1DGC':
             self.snp_encoded = self.t1dgc_snp_encoded
             self.hla_encoded = {}
             for hla in hla_list:
@@ -604,15 +598,15 @@ class DataSplitter:
     """
     一つの遺伝子について、訓練、テストデータにそれぞれ全種類の配列が含まれるようにする
     """
-    def __init__(self, params, id, seed) -> None:
+    def __init__(self, params, id, seed:int, data_dir:str) -> None:
         self.params = params
         self.hla = params['model']['grouping'][id][0]
         self.seed = seed
-        data_root = config['dataset']['save_root']
-        dataset_name = params['data']['dataset']
-        data_root = data_root + config['dataset'][dataset_name]['dirname']
+        data_root = data_dir
+        dataset_name = params['dataset']
+        data_root = data_dir
         
-        hla_info = data_root + config['dataset'][dataset_name]['hla_info']
+        hla_info = f'{data_dir}/hla_info.json'
         self.hla_info = path_to_dict(hla_info)
 
     def _classify_data_by_allele(self, hla_encoded):
@@ -653,7 +647,7 @@ class DataSplitter:
 
         return np.array(test_idx)
 
-def make_loaders(params: Dict, train_data: List, id: int, digit: str, seed: int) -> Tuple:
+def make_loaders(params: Dict, train_data: List, id: int, digit: str, seed: int, data_dir:str) -> Tuple:
     val_split = params['val_split']
     fold_num = params['fold_num']
     batch_size = params['batch_size']
@@ -662,9 +656,9 @@ def make_loaders(params: Dict, train_data: List, id: int, digit: str, seed: int)
     if fold_num != -1:
         idx = np.arange(0, len(train_data))
         if params['use_splitter']:
-            splitter = DataSplitter(params, id, seed)
-            pc_data_root_tmp = config['exp']['pc_data_root']
-            pc_data_loc = pc_data_root_tmp + f'/{params["exp_name"]}'+ f'/{params["task"]}-{params["data"]["dataset"]}'
+            splitter = DataSplitter(params, id, seed, data_dir)
+            pc_data_root_tmp = data_dir
+            pc_data_loc = pc_data_root_tmp + f'/{params["exp_name"]}'
             with open(pc_data_loc + '/encoded_hla.pkl', 'rb') as f:
                 hla_encoded = pickle.load(f)
             test_index = splitter.calc_test_idx(hla_encoded)
@@ -677,7 +671,7 @@ def make_loaders(params: Dict, train_data: List, id: int, digit: str, seed: int)
             else:
                 test_index = np.arange(2*num_ref)
             test_loader = torch.utils.data.DataLoader(Subset(train_data, test_index), batch_size=batch_size, shuffle=False)                
-        pc_data_root = config['exp']['pc_data_root']
+        pc_data_root = data_dir
         pc_data_loc = pc_data_root + f'/{params["exp_name"]}'
         if params['exp_name'] == 'T1DGC_530':
             if os.path.exists(pc_data_loc + f'/training_indice_{seed}.pkl'):
@@ -708,7 +702,7 @@ def make_loaders(params: Dict, train_data: List, id: int, digit: str, seed: int)
         
         not_test_data = Subset(train_data, not_test_index)
         if params['data_aug']:
-            augumentor = DataAugumentor(params, id, digit)
+            augumentor = DataAugumentor(params, id, digit, data_dir)
             not_test_data_auged = augumentor.augument(not_test_data)
 
             train_index = np.arange(int(len(not_test_data_auged)*val_split), len(not_test_data_auged))
@@ -737,8 +731,8 @@ def make_loaders(params: Dict, train_data: List, id: int, digit: str, seed: int)
         val_loader = torch.utils.data.DataLoader(Subset(train_data, val_index), batch_size=batch_size, shuffle=False)
         test_loader = None
 
-    pc_data_root = config['exp']['pc_data_root']
-    pc_data_loc = pc_data_root + f'/{params["exp_name"]}'+ f'/{params["task"]}-{params["data"]["dataset"]}'
+    pc_data_root = data_dir
+    pc_data_loc = pc_data_root + f'/{params["exp_name"]}'
 
     loader_save_loc = pc_data_loc + f'/seed{seed}/id{id}-digit{digit}'
     makedirs(loader_save_loc)

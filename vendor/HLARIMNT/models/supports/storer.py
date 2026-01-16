@@ -5,11 +5,8 @@ import pickle
 import torch
 import torch.nn
 from typing import List, Dict
-from codes.supports.utils import *
+from models.supports.utils import *
 import yaml
-
-with open('../config.yaml') as f:
-    config = yaml.safe_load(f)['exp']
 
 class Storer:
     """
@@ -25,9 +22,8 @@ class Storer:
         """
         self.lowest_dir = lowest_dir
         self.hla_list = hla_list
-        self.model_save_dir = save_dir + config['model_save_loc'] + lowest_dir
-        #self.csv_save_dir = save_dir + config['csv_save_loc']
-        self.log_save_dir = save_dir + config['log_save_loc'] + lowest_dir
+        self.model_save_dir = save_dir + '/model' + lowest_dir
+        self.log_save_dir = save_dir + '/log' + lowest_dir
 
         makedirs(self.model_save_dir)
         #makedirs(self.csv_save_dir)
@@ -99,10 +95,10 @@ class AllResultStorer:
             None
         """
         self.is_test = is_test
-        self.csv_save_dir = save_dir + config['csv_save_loc']
-        makedirs(self.csv_save_dir)
+        #self.csv_save_dir = save_dir + '/csv'
+        #makedirs(self.csv_save_dir)
 
-        self.model_info_save_dir = save_dir + config['model_save_loc']
+        self.model_info_save_dir = save_dir + '/model'
         if not is_test:
             self.result_dict_t = {'hla':[], 'digit':[], 'r2':[], 'r2_01':[], 'concordance':[], 'ppv':[], 'sens':[], 'fscore':[], 'freq':[], 'confidence':[]}
             self.result_dict_v = {'hla':[], 'digit':[], 'r2':[], 'r2_01':[],'concordance':[], 'ppv':[], 'sens':[], 'fscore':[], 'freq':[], 'confidence':[]}
