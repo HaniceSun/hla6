@@ -26,7 +26,11 @@ def get_parser():
     p3.add_argument('--model_json', type=str, default='Pan-Asian_REF.model.json', help='the config file of the model')
     p3.add_argument('--model_dir', type=str, default='model', help='the output directory of the trained model')
  
-    p4 = subparsers.add_parser("run-hlarimnt", help="run Transformer-based HLARIMNT, to be implemented")
+    p4 = subparsers.add_parser("run-hlarimnt", help="run Transformer-based HLARIMNT")
+    p4.add_argument('--mode', type=str, default='prepare', help='mode: prepare, train, or eval')
+    p4.add_argument('--ref', type=str, default='Pan-Asian_REF', help='reference panel prefix, can be HM_CEU_REF or Pan-Asian_REF currently')
+    p4.add_argument('--data_dir', type=str, default='Pan-Asian', help='directory containing the reference data files')
+    p4.add_argument('--model_yaml', type=str, default='deep_hla.yaml', help='the config file of the model, check resources folder for available config files')
 
     p5 = subparsers.add_parser("run-xHLA", help="run xHLA on sequencing data")
     p5.add_argument('--input', type=str, default='test.bam', help='input bam file')
@@ -41,14 +45,13 @@ def main():
     ar = Array()
     if args.command == 'run-snp2hla':
         ar.run_snp2hla(in_file=args.input, ref_file=args.ref)
-    if args.command == 'run-deephla':
+    elif args.command == 'run-deephla':
         ar.run_deephla(mode=args.mode, in_file=args.input, ref_file=args.ref, subset=args.subset,
                        model_json=args.model_json, model_dir=args.model_dir)
+    elif args.command == 'run-hlarimnt':
+        ar.run_hlarimnt(mode=args.mode, ref_file=args.ref, data_dir=args.data_dir, model_yaml=args.model_yaml)
     elif args.command == 'format-output':
         ar.format_output(in_file=args.input, out_file=args.output, digit=args.digit, from_tool=args.from_tool)
-    elif args.command == 'run-xHLA':
-        seq = Seq()
-        seq.run_xHLA(input_bam=args.input, out_dir=args.output_dir, sample_id=args.sample_id, singularity_sif=args.singularity_sif)
 
 if __name__ == '__main__':
     main()

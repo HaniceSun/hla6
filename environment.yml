@@ -21,4 +21,5 @@ dependencies:
   - pip
   - pip:
       - -r requirements.txt
+      - torch
       - -e . 

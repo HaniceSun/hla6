@@ -2,6 +2,7 @@ import os
 import gzip
 import pandas as pd
 import subprocess
+import torch
 from importlib import resources
 
 class Array():
@@ -71,6 +72,27 @@ class Array():
             model_json = model_json.split('.model.json')[0]
             hla_json = ref_file
             cmd = f'conda run -n DEEP-HLA python {deephla_dir}/impute.py --sample {in_file} --model {model_json} --hla  {hla_json} --model-dir {model_dir} --out {in_file}'
+            print(cmd)
+            subprocess.run(cmd, shell=True, check=True)
+
+    def run_hlarimnt(self, mode='train', ref_file='Pan-Asian_REF', data_dir='Pan-Asian', model_yaml='config.yaml', hlarimnt_dir=None):
+        data_dir = os.path.abspath(data_dir)
+        model_yaml = f'{data_dir}/{model_yaml}'
+
+        if not hlarimnt_dir:
+            hlarimnt_dir = f'{resources.files("hla6").parent.parent}/vendor/HLARIMNT/src/exp'
+        os.chdir(hlarimnt_dir)
+
+        if mode == 'prepare':
+            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/make_hlainfo.py --ref {ref_file} --data_dir {data_dir}'
+            print(f'making HLA info to {data_dir}/hla_info.json')
+            subprocess.run(cmd, shell=True, check=True)
+            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/make_samplebim.py --ref {ref_file} --data_dir {data_dir}'
+            print(f'making sample bim to {data_dir}/{ref_file}_sample.bim')
+            subprocess.run(cmd, shell=True, check=True)
+        if mode == 'train':
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            cmd = f'conda run -n HLARIMNT python {hlarimnt_dir}/run_train.py --config {model_yaml} --device {device} --data_dir {data_dir}'
             print(cmd)
             subprocess.run(cmd, shell=True, check=True)
 
