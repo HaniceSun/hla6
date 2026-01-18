@@ -83,8 +83,8 @@ class DataPreprocessor:
                 for j in range(2):
                     M[n // 2 - 1, m * 2 + j] = df.iloc[m, n + j]
                 if n == 2:
-                    H.append(f"A1_{df['id_ref'].iloc[m]}_{df['pos_ref'].iloc[m]}")
-                    H.append(f"A2_{df['id_ref'].iloc[m]}_{df['pos_ref'].iloc[m]}")
+                    H.append(f'A1_v{m+1}')
+                    H.append(f'A2_v{m+1}')
         df = pd.DataFrame(M)
         df.index = S
         df.index.name = 'sample'
