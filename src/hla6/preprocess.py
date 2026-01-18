@@ -7,7 +7,7 @@ class DataPreprocessor:
         self.ref_phased = pd.read_table(ref_phased, header=None, sep=' ')
         self.sample_bim = pd.read_table(sample_bim, header=None, sep='\t')
 
-        bim_cols = ['chrom', 'id', 'cm', 'pos', 'allele1', 'allele2']
+        bim_cols = ['chrom', 'id', 'cm', 'pos', 'A1', 'A2']
         self.ref_bim.columns = [f'{x}_ref' for x in bim_cols]
         self.sample_bim.columns = [f'{x}_sample' for x in bim_cols]
 
@@ -15,8 +15,8 @@ class DataPreprocessor:
         cols[0] = 'I'
         cols[1] = 'id_ref'
         for i in range(2, self.ref_phased.shape[1], 2):
-            cols[i] = f'allele1_{i//2}'
-            cols[i + 1] = f'allele2_{i//2}'
+            cols[i] = f'A1_s{i//2}'
+            cols[i + 1] = f'A2_s{i//2}'
         self.ref_phased.columns = cols
 
         self.hla_filter = ['HLA']
@@ -58,8 +58,8 @@ class DataPreprocessor:
             raise ValueError("Either by_id or by_pos must be True.")
 
         if check_alleles:
-            wh = ( ( (df['allele1_ref'] == df['allele1_sample']) & (df['allele2_ref'] == df['allele2_sample']) ) | 
-                   ( (df['allele1_ref'] == df['allele2_sample']) & (df['allele2_ref'] == df['allele1_sample']) ) )
+            wh = ( ( (df['A1_ref'] == df['A1_sample']) & (df['A2_ref'] == df['A2_sample']) ) | 
+                   ( (df['A1_ref'] == df['A2_sample']) & (df['A2_ref'] == df['A1_sample']) ) )
             df = df[wh]
 
         # Merge with phased data
@@ -67,33 +67,55 @@ class DataPreprocessor:
         L = []
         L.append(df[['id_ref', 'pos_ref']])
         for col in df.columns:
-            if str(col).startswith('allele') and str(col).find('_ref') == -1 and str(col).find('_sample') == -1:
-                d = {col:(df[col]==df['allele1_ref']).astype(int)}
+            if str(col).startswith('A') and str(col).find('_ref') == -1 and str(col).find('_sample') == -1:
+                d = {col:(df[col]==df['A1_ref']).astype(int)}
                 L.append( pd.DataFrame(d))
         df = pd.concat(L, axis=1)
         df = df.sort_values(by='pos_ref').reset_index(drop=True)
-        features = df.iloc[:, 2:].T
-        features.index.name = 'allele_sample'
-        features.columns = df['id_ref'] + '_' + df['pos_ref'].astype(str)
-        features.to_csv(out_file, sep='\t', index=True, header=True)
+        print(df)
 
-    def make_labels(self, label_file='labels.txt', encoding_file='label_encoding.txt'):
-        self.get_label_encoding(encoding_file)
-        n_heads = max(self.encoding['head_idx'].unique()) + 1
-        heads = self.encoding.sort_values(by='head_idx')['head'].unique()
-        M = np.zeros((self.ref_phased_hla.shape[1] - 2, n_heads), dtype=int)
-        for n in range(2, self.ref_phased_hla.shape[1]):
-            variants = self.ref_phased_hla.loc[self.ref_phased_hla.iloc[:, n] == 'P', 'id_ref'].values
-            df_sub = self.encoding[self.encoding['allele'].isin(variants)]
-            for m in range(df_sub.shape[0]):
-                head_idx = df_sub['head_idx'].iloc[m]
-                label = df_sub['label'].iloc[m]
-                M[n - 2, head_idx] = label
+        M = np.zeros((int(df.shape[1]/2 - 1), df.shape[0] * 2), dtype=int)
+        H = []
+        S = []
+        for n in range(2, df.shape[1], 2):
+            S.append(df.columns[n].split('_')[-1])
+            for m in range(df.shape[0]):
+                for j in range(2):
+                    M[n // 2 - 1, m * 2 + j] = df.iloc[m, n + j]
+                if n == 2:
+                    H.append(f"A1_{df['id_ref'].iloc[m]}_{df['pos_ref'].iloc[m]}")
+                    H.append(f"A2_{df['id_ref'].iloc[m]}_{df['pos_ref'].iloc[m]}")
         df = pd.DataFrame(M)
-        df.index = self.ref_phased_hla.columns[2:]
-        df.index.name = 'allele_sample'
-        df.columns = heads
-        df.to_csv(label_file, sep='\t', index=True, header=True)
+        df.index = S
+        df.index.name = 'sample'
+        df.columns = H
+        df.to_csv(out_file, sep='\t', index=True, header=True)
+
+    def make_labels(self, out_file='labels.txt', encoding_file='label_encoding.txt'):
+        self.get_label_encoding(encoding_file)
+        print(self.ref_phased_hla)
+        n_heads = (max(self.encoding['head_idx'].unique()) + 1) * 2
+        heads = self.encoding.sort_values(by='head_idx')['head'].unique()
+        S = []
+        H = []
+        for h in heads:
+            H.append(f"A1_{h}")
+            H.append(f"A2_{h}")
+        M = np.zeros((int(self.ref_phased_hla.shape[1]/2 - 1), n_heads), dtype=int)
+        for n in range(2, self.ref_phased_hla.shape[1], 2):
+            S.append(self.ref_phased_hla.columns[n].split('_')[-1])
+            for j in range(2):
+                variants = self.ref_phased_hla.loc[self.ref_phased_hla.iloc[:, n + j] == 'P', 'id_ref'].values
+                df_sub = self.encoding[self.encoding['allele'].isin(variants)]
+                for m in range(df_sub.shape[0]):
+                    head_idx = df_sub['head_idx'].iloc[m]
+                    label = df_sub['label'].iloc[m]
+                    M[n // 2 - 1, head_idx * 2 + j] = label
+        df = pd.DataFrame(M)
+        df.index = S
+        df.index.name = 'sample'
+        df.columns = H
+        df.to_csv(out_file, sep='\t', index=True, header=True)
 
     def get_label_encoding(self, encoding_file='label_encoding.txt'):
         D = {}
@@ -112,7 +134,7 @@ class DataPreprocessor:
             H[k] = sorted(D[k])
 
         encoding = []
-        for head in H: 
+        for head in H:
             for allele in H[head]:
                 digit = len(allele.split('_')[-1])//2*2
                 encoding.append([digit, allele, H[head].index(allele), head])
