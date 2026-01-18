@@ -137,7 +137,7 @@ class DataPreprocessor:
         for head in H:
             for allele in H[head]:
                 digit = len(allele.split('_')[-1])//2*2
-                encoding.append([digit, allele, H[head].index(allele), head])
+                encoding.append([digit, allele, H[head].index(allele) + 1, head])
         encoding = pd.DataFrame(encoding, columns=['digit', 'allele', 'label', 'head'])
         encoding.sort_values(by=['digit', 'head'], inplace=True)
 
@@ -165,7 +165,7 @@ class DataPreprocessor:
                 p = head[0:-2]
             if p != '.':
                 p_idx = heads.index(p)
-                p_val = H[p].index(head)
+                p_val = H[p].index(head) + 1
             parent.append(p)
             parent_idx.append(p_idx)
             parent_value.append(p_val)
